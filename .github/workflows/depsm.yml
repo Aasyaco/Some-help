@@ -1,0 +1,55 @@
+name: Build zlib package
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build tools (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          sudo apt-get update -y || true
+          sudo apt-get install -y cmake make gcc g++ || true
+          brew install cmake || true
+
+      - name: Download zlib source
+        run: |
+          curl -L https://zlib.net/zlib-1.3.1.tar.gz -o zlib.tar.gz
+          tar -xzf zlib.tar.gz
+          mv zlib-* zlib
+
+      - name: Configure zlib
+        run: |
+          mkdir build
+          cd build
+          cmake ../zlib -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build zlib
+        run: |
+          cd build
+          cmake --build . --config Release
+
+      - name: Package zlib
+        run: |
+          cd build
+          cmake --install . --prefix ../zlib-package
+          cd ..
+          tar -czf zlib-${{ matrix.os }}.tar.gz zlib-package
+
+      - name: Upload zlib package
+        uses: actions/upload-artifact@v4
+        with:
+          name: zlib-${{ matrix.os }}
+          path: zlib-${{ matrix.os }}.tar.gz
