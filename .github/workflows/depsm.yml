@@ -1,4 +1,4 @@
-name: Build zlib for Android (aarch64)
+name: Build compression libs for Android (aarch64)
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-android:
-    name: Android (aarch64) zlib
+    name: Android (aarch64) compression libs
     runs-on: ubuntu-latest
 
     steps:
@@ -18,21 +18,7 @@ jobs:
       - name: Install build tools
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y cmake ninja-build curl unzip tar
-
-      - name: Set zlib version
-        id: version
-        run: |
-          # Set the version of zlib to build
-          VERSION=1.3.1
-          echo "ZLIB_VERSION=$VERSION" >> $GITHUB_ENV
-          echo "Zlib version: $VERSION"
-
-      - name: Download zlib source
-        run: |
-          curl -L https://zlib.net/zlib-${ZLIB_VERSION}.tar.gz -o zlib.tar.gz
-          tar -xzf zlib.tar.gz
-          mv zlib-* zlib
+          sudo apt-get install -y cmake ninja-build curl unzip tar autoconf automake libtool
 
       - name: Download Android NDK (r28c Stable)
         run: |
@@ -40,21 +26,28 @@ jobs:
           unzip -q ndk.zip
           mv android-ndk-* $HOME/android-ndk
 
-      - name: Configure zlib for aarch64
+      - name: Setup toolchain
         run: |
           export ANDROID_NDK=$HOME/android-ndk
           export TOOLCHAIN=$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64
           export API=21
-          export AR=$TOOLCHAIN/bin/aarch64-linux-android-ar
-          export AS=$TOOLCHAIN/bin/aarch64-linux-android-as
-          export CC=$TOOLCHAIN/bin/aarch64-linux-android${API}-clang
-          export CXX=$TOOLCHAIN/bin/aarch64-linux-android${API}-clang++
-          export LD=$TOOLCHAIN/bin/aarch64-linux-android-ld
-          export RANLIB=$TOOLCHAIN/bin/aarch64-linux-android-ranlib
-          export STRIP=$TOOLCHAIN/bin/aarch64-linux-android-strip
+          echo "ANDROID_NDK=$ANDROID_NDK" >> $GITHUB_ENV
+          echo "TOOLCHAIN=$TOOLCHAIN" >> $GITHUB_ENV
+          echo "API=$API" >> $GITHUB_ENV
+          echo "CC=$TOOLCHAIN/bin/aarch64-linux-android${API}-clang" >> $GITHUB_ENV
+          echo "CXX=$TOOLCHAIN/bin/aarch64-linux-android${API}-clang++" >> $GITHUB_ENV
+          echo "AR=$TOOLCHAIN/bin/llvm-ar" >> $GITHUB_ENV
+          echo "RANLIB=$TOOLCHAIN/bin/llvm-ranlib" >> $GITHUB_ENV
+          echo "STRIP=$TOOLCHAIN/bin/llvm-strip" >> $GITHUB_ENV
+          echo "PATH=$TOOLCHAIN/bin:$PATH" >> $GITHUB_ENV
 
-          mkdir build
-          cd build
+      # ────────────── zlib ──────────────
+      - name: Build zlib
+        run: |
+          curl -L https://zlib.net/zlib-1.3.1.tar.gz -o zlib.tar.gz
+          tar -xzf zlib.tar.gz
+          mv zlib-* zlib
+          mkdir build-zlib && cd build-zlib
           cmake ../zlib \
             -DCMAKE_SYSTEM_NAME=Android \
             -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
@@ -62,31 +55,63 @@ jobs:
             -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a \
             -DCMAKE_ANDROID_API=$API \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=$PWD/../zlib-aarch64 \
+            -DCMAKE_INSTALL_PREFIX=$PWD/../android-libs/aarch64-linux-android \
             -G Ninja
-
-      - name: Build and Install zlib
-        run: |
-          cd build
           cmake --build . --config Release
-          cmake --install .   # installs into ../zlib-aarch64
+          cmake --install .
 
-      - name: Package zlib
+      # ────────────── bzip2 ──────────────
+      - name: Build bzip2
         run: |
-          tar -czf zlib-aarch64-android-${ZLIB_VERSION}.tar.gz zlib-aarch64
+          curl -L https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz -o bzip2.tar.gz
+          tar -xzf bzip2.tar.gz
+          cd bzip2-1.0.8
+          make CC="$CC" AR="$AR" RANLIB="$RANLIB" CFLAGS="-fPIC"
+          mkdir -p $GITHUB_WORKSPACE/android-libs/aarch64-linux-android/{include,lib}
+          cp libbz2.a $GITHUB_WORKSPACE/android-libs/aarch64-linux-android/lib/
+          cp bzlib.h $GITHUB_WORKSPACE/android-libs/aarch64-linux-android/include/
 
-      - name: Compute release tag
+      # ────────────── xz (lzma) ──────────────
+      - name: Build xz (lzma)
         run: |
-          TAG_NAME="zlib_${ZLIB_VERSION//./_}"
-          echo "RELEASE_TAG=$TAG_NAME" >> $GITHUB_ENV
+          curl -L https://tukaani.org/xz/xz-5.2.10.tar.gz -o xz.tar.gz
+          tar -xzf xz.tar.gz
+          cd xz-5.2.10
+          ./configure \
+            --host=aarch64-linux-android \
+            --prefix=$GITHUB_WORKSPACE/android-libs/aarch64-linux-android \
+            --disable-shared --enable-static --with-pic \
+            CC="$CC" AR="$AR" RANLIB="$RANLIB"
+          make
+          make install
 
-      - name: Create or Update GitHub Release
+      # ────────────── gzip ──────────────
+      - name: Build gzip
+        run: |
+          curl -L https://ftp.gnu.org/gnu/gzip/gzip-1.13.tar.gz -o gzip.tar.gz
+          tar -xzf gzip.tar.gz
+          cd gzip-1.13
+          ./configure \
+            --host=aarch64-linux-android \
+            --prefix=$GITHUB_WORKSPACE/android-libs/aarch64-linux-android \
+            CC="$CC" AR="$AR" RANLIB="$RANLIB" \
+            CPPFLAGS="-I$GITHUB_WORKSPACE/android-libs/aarch64-linux-android/include" \
+            LDFLAGS="-L$GITHUB_WORKSPACE/android-libs/aarch64-linux-android/lib"
+          make
+          make install
+
+      # ────────────── Package ──────────────
+      - name: Package all libs
+        run: |
+          cd android-libs
+          tar -czf compression-libs-aarch64-android.tar.gz aarch64-linux-android
+          mv compression-libs-aarch64-android.tar.gz $GITHUB_WORKSPACE/
+
+      - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          name: "zlib ${{ env.ZLIB_VERSION }} (Android aarch64)"
-          files: zlib-aarch64-android-${{ env.ZLIB_VERSION }}.tar.gz
-          draft: false
-          prerelease: false
+          tag_name: "zgbl"
+          name: "Compression Libraries (zlib, bzip2, lzma, gzip)"
+          files: compression-libs-aarch64-android.tar.gz
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}  # use your PAT with repo scope
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}  # use PAT with repo scope
