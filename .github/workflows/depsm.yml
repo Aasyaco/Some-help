@@ -101,20 +101,19 @@ jobs:
           make install
 
       # ────────────── chemfiles/lzma ──────────────
-      - name: Build chemfiles/lzma
+      # ────────────── xz (LZMA) ──────────────
+      - name: Build xz (LZMA)
         run: |
-          cd $HOME
-          git clone https://github.com/chemfiles/lzma.git
-          cd lzma
-          mkdir build && cd build
-          cmake .. -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+          curl -L https://tukaani.org/xz/xz-5.2.10.tar.gz -o xz.tar.gz
+          tar -xzf xz.tar.gz
+          cd xz-5.2.10
+          ./configure \
+            --host=aarch64-linux-android \
+            --prefix=$GITHUB_WORKSPACE/android-libs/aarch64-linux-android \
+            --disable-shared --enable-static --with-pic \
+            CC="$CC" AR="$AR" RANLIB="$RANLIB"
           make
-
-      - name: Install chemfiles/lzma into Android libs
-        run: |
-          mkdir -p $GITHUB_WORKSPACE/android-libs/aarch64-linux-android/{lib,include}
-          cp $HOME/lzma/build/liblzma.a $GITHUB_WORKSPACE/android-libs/aarch64-linux-android/lib/
-          cp -r $HOME/lzma/include/* $GITHUB_WORKSPACE/android-libs/aarch64-linux-android/include/
+          make install
 
       # ────────────── Package all libs ──────────────
       - name: Package all libraries
