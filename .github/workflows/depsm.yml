@@ -1,4 +1,4 @@
-name: Build zlib package
+name: Build zlib for Android (aarch64)
 
 on:
   workflow_dispatch:
@@ -7,22 +7,18 @@ on:
       - main
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+  build-android:
+    name: Android (aarch64) zlib
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install build tools (Linux/macOS)
-        if: runner.os != 'Windows'
+      - name: Install build tools
         run: |
-          sudo apt-get update -y || true
-          sudo apt-get install -y cmake make gcc g++ || true
-          brew install cmake || true
+          sudo apt-get update -y
+          sudo apt-get install -y cmake ninja-build curl tar
 
       - name: Download zlib source
         run: |
@@ -30,11 +26,35 @@ jobs:
           tar -xzf zlib.tar.gz
           mv zlib-* zlib
 
-      - name: Configure zlib
+      - name: Download Android NDK
         run: |
+          curl -L https://dl.google.com/android/repository/android-ndk-r26d-linux.zip -o ndk.zip
+          unzip -q ndk.zip
+          mv android-ndk-* $HOME/android-ndk
+
+      - name: Configure zlib for aarch64
+        run: |
+          export ANDROID_NDK=$HOME/android-ndk
+          export TOOLCHAIN=$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64
+          export API=21
+          export AR=$TOOLCHAIN/bin/aarch64-linux-android-ar
+          export AS=$TOOLCHAIN/bin/aarch64-linux-android-as
+          export CC=$TOOLCHAIN/bin/aarch64-linux-android${API}-clang
+          export CXX=$TOOLCHAIN/bin/aarch64-linux-android${API}-clang++
+          export LD=$TOOLCHAIN/bin/aarch64-linux-android-ld
+          export RANLIB=$TOOLCHAIN/bin/aarch64-linux-android-ranlib
+          export STRIP=$TOOLCHAIN/bin/aarch64-linux-android-strip
+
           mkdir build
           cd build
-          cmake ../zlib -DCMAKE_BUILD_TYPE=Release
+          cmake ../zlib \
+            -DCMAKE_SYSTEM_NAME=Android \
+            -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+            -DCMAKE_ANDROID_NDK=$ANDROID_NDK \
+            -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a \
+            -DCMAKE_ANDROID_API=$API \
+            -DCMAKE_BUILD_TYPE=Release \
+            -G Ninja
 
       - name: Build zlib
         run: |
@@ -44,12 +64,12 @@ jobs:
       - name: Package zlib
         run: |
           cd build
-          cmake --install . --prefix ../zlib-package
+          cmake --install . --prefix ../zlib-aarch64
           cd ..
-          tar -czf zlib-${{ matrix.os }}.tar.gz zlib-package
+          tar -czf zlib-aarch64-android.tar.gz zlib-aarch64
 
       - name: Upload zlib package
         uses: actions/upload-artifact@v4
         with:
-          name: zlib-${{ matrix.os }}
-          path: zlib-${{ matrix.os }}.tar.gz
+          name: zlib-aarch64-android
+          path: zlib-aarch64-android.tar.gz
