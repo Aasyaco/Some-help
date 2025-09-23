@@ -3,7 +3,7 @@ name: Build zlib for Android (aarch64)
 on:
   push:
     branches:
-      - "**"   # run on all branches
+      - "**"   # Run on all branches
   workflow_dispatch:
 
 jobs:
@@ -23,7 +23,7 @@ jobs:
       - name: Set zlib version
         id: version
         run: |
-          # hardcode here if you only want one version
+          # Set the version of zlib to build
           VERSION=1.3.1
           echo "ZLIB_VERSION=$VERSION" >> $GITHUB_ENV
           echo "Zlib version: $VERSION"
@@ -75,10 +75,15 @@ jobs:
         run: |
           tar -czf zlib-aarch64-android-${ZLIB_VERSION}.tar.gz zlib-aarch64
 
+      - name: Compute release tag
+        run: |
+          TAG_NAME="zlib_${ZLIB_VERSION//./_}"
+          echo "RELEASE_TAG=$TAG_NAME" >> $GITHUB_ENV
+
       - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: zlib_${{ env.ZLIB_VERSION//./_ }}
+          tag_name: ${{ env.RELEASE_TAG }}
           name: "zlib ${{ env.ZLIB_VERSION }} (Android aarch64)"
           files: zlib-aarch64-android-${{ env.ZLIB_VERSION }}.tar.gz
           draft: false
