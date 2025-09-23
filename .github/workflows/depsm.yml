@@ -3,7 +3,7 @@ name: Build compression libs for Android (aarch64)
 on:
   push:
     branches:
-      - "**"   # Run on all branches
+      - "**"
   workflow_dispatch:
 
 jobs:
@@ -20,7 +20,7 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y cmake ninja-build curl unzip tar autoconf automake libtool
 
-      - name: Download Android NDK (r28c Stable)
+      - name: Download Android NDK (r28c)
         run: |
           curl -L https://dl.google.com/android/repository/android-ndk-r28c-linux.zip -o ndk.zip
           unzip -q ndk.zip
@@ -61,12 +61,12 @@ jobs:
           cmake --install .
 
       # ────────────── bzip2 ──────────────
-      - name: Build bzip2
+      - name: Build bzip2 (skip tests)
         run: |
           curl -L https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz -o bzip2.tar.gz
           tar -xzf bzip2.tar.gz
           cd bzip2-1.0.8
-          make CC="$CC" AR="$AR" RANLIB="$RANLIB" CFLAGS="-fPIC"
+          make CC="$CC" AR="$AR" RANLIB="$RANLIB" CFLAGS="-fPIC" bzip2 bzip2recover libbz2.a
           mkdir -p $GITHUB_WORKSPACE/android-libs/aarch64-linux-android/{include,lib}
           cp libbz2.a $GITHUB_WORKSPACE/android-libs/aarch64-linux-android/lib/
           cp bzlib.h $GITHUB_WORKSPACE/android-libs/aarch64-linux-android/include/
@@ -100,18 +100,18 @@ jobs:
           make
           make install
 
-      # ────────────── Package ──────────────
-      - name: Package all libs
+      # ────────────── Package all libs ──────────────
+      - name: Package all libraries
         run: |
-          cd android-libs
+          cd $GITHUB_WORKSPACE/android-libs
           tar -czf compression-libs-aarch64-android.tar.gz aarch64-linux-android
           mv compression-libs-aarch64-android.tar.gz $GITHUB_WORKSPACE/
 
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "zgbl"
+          tag_name: "compression_libs"
           name: "Compression Libraries (zlib, bzip2, lzma, gzip)"
           files: compression-libs-aarch64-android.tar.gz
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}  # use PAT with repo scope
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
