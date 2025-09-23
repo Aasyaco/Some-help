@@ -18,7 +18,7 @@ jobs:
       - name: Install build tools
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y cmake ninja-build curl unzip tar autoconf automake libtool
+          sudo apt-get install -y cmake ninja-build curl unzip tar autoconf automake libtool git
 
       - name: Download Android NDK (r28c)
         run: |
@@ -71,8 +71,8 @@ jobs:
           cp libbz2.a $GITHUB_WORKSPACE/android-libs/aarch64-linux-android/lib/
           cp bzlib.h $GITHUB_WORKSPACE/android-libs/aarch64-linux-android/include/
 
-      # ────────────── xz (lzma) ──────────────
-      - name: Build xz (lzma)
+      # ────────────── xz (standard lzma) ──────────────
+      - name: Build xz (standard lzma)
         run: |
           curl -L https://tukaani.org/xz/xz-5.2.10.tar.gz -o xz.tar.gz
           tar -xzf xz.tar.gz
@@ -100,6 +100,22 @@ jobs:
           make
           make install
 
+      # ────────────── chemfiles/lzma ──────────────
+      - name: Build chemfiles/lzma
+        run: |
+          cd $HOME
+          git clone https://github.com/chemfiles/lzma.git
+          cd lzma
+          mkdir build && cd build
+          cmake .. -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+          make
+
+      - name: Install chemfiles/lzma into Android libs
+        run: |
+          mkdir -p $GITHUB_WORKSPACE/android-libs/aarch64-linux-android/{lib,include}
+          cp $HOME/lzma/build/liblzma.a $GITHUB_WORKSPACE/android-libs/aarch64-linux-android/lib/
+          cp -r $HOME/lzma/include/* $GITHUB_WORKSPACE/android-libs/aarch64-linux-android/include/
+
       # ────────────── Package all libs ──────────────
       - name: Package all libraries
         run: |
@@ -111,7 +127,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "compression_libs"
-          name: "Compression Libraries (zlib, bzip2, lzma, gzip)"
+          name: "Compression Libraries (zlib, bzip2, xz/lzma, gzip, chemfiles-lzma)"
           files: compression-libs-aarch64-android.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
