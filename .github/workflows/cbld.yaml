@@ -1,0 +1,71 @@
+name: Build LLVM AArch64 .deb
+
+on:
+  push:
+    tags:
+      - 'llvmorg-21.1.2'
+
+jobs:
+  build-deb:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout LLVM source
+        uses: actions/checkout@v3
+        with:
+          repository: llvm/llvm-project
+          ref: refs/tags/llvmorg-21.1.2
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            python3 \
+            python3-pip \
+            python3-setuptools \
+            wget \
+            dpkg-dev \
+            fakeroot
+
+      - name: Build LLVM
+        run: |
+          mkdir build
+          cd build
+          cmake -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DLLVM_TARGETS_TO_BUILD="AArch64" \
+            -DLLVM_ENABLE_PROJECTS="clang;lld" \
+            -DCMAKE_INSTALL_PREFIX=/usr/local/llvm-21.1.2 \
+            ../llvm
+          ninja
+          ninja install
+
+      - name: Prepare .deb folder structure
+        run: |
+          mkdir -p llvm-deb/DEBIAN
+          mkdir -p llvm-deb/usr/local
+          cp -r /usr/local/llvm-21.1.2 llvm-deb/usr/local/
+
+          cat <<EOF > llvm-deb/DEBIAN/control
+          Package: llvm-21-aarch64
+          Version: 21.1.2
+          Section: devel
+          Priority: optional
+          Architecture: arm64
+          Maintainer: GitHub Actions <actions@github.com>
+          Description: LLVM 21.1.2 for AArch64
+          EOF
+
+      - name: Build .deb package
+        run: |
+          dpkg-deb --build llvm-deb
+          mv llvm-deb.deb $GITHUB_WORKSPACE/llvm-21.1.2-aarch64.deb
+
+      - name: Upload .deb artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: llvm-21.1.2-aarch64
+          path: llvm-21.1.2-aarch64.deb
