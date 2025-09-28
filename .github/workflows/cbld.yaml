@@ -15,7 +15,7 @@ jobs:
 
     steps:
       - name: Checkout LLVM source
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
         with:
           repository: llvm/llvm-project
           ref: refs/tags/llvmorg-21.1.2
