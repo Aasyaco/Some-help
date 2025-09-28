@@ -4,6 +4,10 @@ on:
   push:
     tags:
       - 'llvmorg-21.1.2'
+    branches:
+      - '**'
+  workflow_dispatch:
+  
 
 jobs:
   build-deb:
