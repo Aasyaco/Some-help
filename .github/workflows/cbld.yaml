@@ -69,7 +69,7 @@ jobs:
           mv llvm-deb.deb $GITHUB_WORKSPACE/llvm-21.1.2-aarch64.deb
 
       - name: Upload .deb artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: llvm-21.1.2-aarch64
           path: llvm-21.1.2-aarch64.deb
