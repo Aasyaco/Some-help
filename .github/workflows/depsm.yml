@@ -123,7 +123,7 @@ jobs:
           mv compression-libs-aarch64-android.tar.gz $GITHUB_WORKSPACE/
 
       - name: Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: "compression_libs"
           name: "Compression Libraries (zlib, bzip2, xz/lzma, gzip, chemfiles-lzma)"
